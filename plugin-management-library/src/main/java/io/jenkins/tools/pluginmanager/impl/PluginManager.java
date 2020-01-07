@@ -78,6 +78,7 @@ public class PluginManager {
     private boolean verbose;
     private boolean useLatestSpecified;
     private boolean useLatestAll;
+    private boolean considerBundledPlugins;
 
     public static final String SEPARATOR = File.separator;
 
@@ -94,6 +95,7 @@ public class PluginManager {
         jenkinsUcLatest = cfg.getJenkinsUc().toString();
         useLatestSpecified = cfg.isUseLatestSpecified();
         useLatestAll = cfg.isUseLatestAll();
+        considerBundledPlugins  = false; // TODO: Add a CLI option to set this
     }
 
     /**
@@ -119,7 +121,9 @@ public class PluginManager {
         getUCJson();
         getSecurityWarnings();
         showAllSecurityWarnings();
-        bundledPluginVersions = bundledPlugins();
+        if (considerBundledPlugins) {
+            bundledPluginVersions = bundledPlugins();
+        }
         installedPluginVersions = installedPlugins();
 
         allPluginsAndDependencies = findPluginsAndDependencies(cfg.getPlugins());
@@ -153,16 +157,21 @@ public class PluginManager {
             Plugin plugin = requestedPlugin.getValue();
             VersionNumber installedVersion = null;
             if (installedPluginVersions.containsKey(pluginName)) {
-                installedVersion = installedPluginVersions.get(pluginName).getVersion();
-            } else if (bundledPluginVersions.containsKey(pluginName)) {
+                if (considerBundledPlugins &&
+                        bundledPluginVersions.containsKey(pluginName) &&
+                        bundledPluginVersions.get(pluginName).getVersion().
+                                isNewerThan(installedPluginVersions.get(pluginName).getVersion())
+                ) {
+                    installedVersion = bundledPluginVersions.get(pluginName).getVersion();
+                } else {
+                    installedVersion = installedPluginVersions.get(pluginName).getVersion();
+                }
+            } else if (considerBundledPlugins &&
+                    bundledPluginVersions.containsKey(pluginName)
+            ) {
                 installedVersion = bundledPluginVersions.get(pluginName).getVersion();
-            } else if (bundledPluginVersions.containsKey(pluginName) &&
-                    installedPluginVersions.containsKey(pluginName)) {
-                installedVersion = bundledPluginVersions.get(pluginName).getVersion().
-                        isNewerThan(installedPluginVersions.get(pluginName).getVersion()) ?
-                        bundledPluginVersions.get(pluginName).getVersion() :
-                        installedPluginVersions.get(pluginName).getVersion();
             }
+
             if (installedVersion == null) {
                 pluginsToDownload.add(plugin);
             } else if (installedVersion.isOlderThan(plugin.getVersion())) {
@@ -190,7 +199,9 @@ public class PluginManager {
         }
 
         sortEffectivePlugins(effectivePlugins, installedPluginVersions);
-        sortEffectivePlugins(effectivePlugins, bundledPluginVersions);
+        if (considerBundledPlugins) {
+            sortEffectivePlugins(effectivePlugins, bundledPluginVersions);
+        }
         return effectivePlugins;
     }
 
@@ -214,7 +225,13 @@ public class PluginManager {
     public void listPlugins() {
         if (cfg.isShowPluginsToBeDownloaded()) {
             logPlugins("Installed plugins:", new ArrayList<>(installedPluginVersions.values()));
-            logPlugins("Bundled plugins:", new ArrayList<>(bundledPluginVersions.values()));
+            if (!considerBundledPlugins) {
+                System.out.println("Bundled plugins: ignored by command line option");
+            } else if (bundledPluginVersions.size() == 0) {
+                System.out.println("Bundled plugins: none found");
+            } else {
+                logPlugins("Bundled plugins:", new ArrayList<>(bundledPluginVersions.values()));
+            }
             logPlugins("Set of all requested plugins:", new ArrayList<>(allPluginsAndDependencies.values()));
             logPlugins("Set of all requested plugins that will be downloaded:", pluginsToBeDownloaded);
             logPlugins("Set of all existing plugins and plugins that will be downloaded:",
