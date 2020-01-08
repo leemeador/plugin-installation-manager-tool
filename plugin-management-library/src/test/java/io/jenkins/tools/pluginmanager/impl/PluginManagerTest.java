@@ -46,6 +46,7 @@ import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 import static io.jenkins.tools.pluginmanager.util.PluginManagerUtils.dirName;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -212,7 +213,87 @@ public class PluginManagerTest {
                 .build();
 
         PluginManager pluginManager = new PluginManager(config);
+        preparePluginManagerForListing(pluginManager);
 
+        String expectedOutput =
+                "\nInstalled plugins:\n" +
+                "installed1 1.0\n" +
+                "installed2 2.0\n" +
+                "\nBundled plugins:\n" +
+                "bundled1 1.0\n" +
+                "bundled2 2.0\n" +
+                "\nSet of all requested plugins:\n" +
+                "dependency1 1.0.0\n" +
+                "dependency2 1.0.0\n" +
+                "plugin1 1.0\n" +
+                "plugin2 2.0\n" +
+                "\nSet of all requested plugins that will be downloaded:\n" +
+                "dependency1 1.0.0\n" +
+                "dependency2 1.0.0\n" +
+                "plugin1 1.0\n" +
+                "plugin2 2.0\n" +
+                "\nSet of all existing plugins and plugins that will be downloaded:\n" +
+                "bundled1 1.0\n" +
+                "bundled2 2.0\n" +
+                "dependency1 1.0.0\n" +
+                "dependency2 1.0.0\n" +
+                "installed1 1.0\n" +
+                "installed2 2.0\n" +
+                "plugin1 1.0\n" +
+                "plugin2 2.0\n";
+
+        ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(outContent));
+        pluginManager.listPlugins();
+
+        assertEquals(expectedOutput.trim(), outContent.toString().replaceAll("\\r\\n?", "\n").trim());
+    }
+
+    @Test
+    public void listPluginsOutputTestDoNoConsiderBundledPlugins() throws IOException {
+         Config config = Config.builder()
+                .withJenkinsWar(Settings.DEFAULT_WAR)
+                .withPluginDir(Files.createTempDirectory("plugins").toFile())
+                .withShowPluginsToBeDownloaded(true)
+                .build();
+
+        PluginManager pluginManager = new PluginManager(config);
+        pluginManager.setConsiderBundledPlugins(false);
+        preparePluginManagerForListing(pluginManager);
+
+        String expectedOutput =
+                "\nInstalled plugins:\n" +
+                "installed1 1.0\n" +
+                "installed2 2.0\n" +
+                "\nBundled plugins: ignored by command line option\n" +
+                "\nSet of all requested plugins:\n" +
+                "dependency1 1.0.0\n" +
+                "dependency2 1.0.0\n" +
+                "plugin1 1.0\n" +
+                "plugin2 2.0\n" +
+                "\nSet of all requested plugins that will be downloaded:\n" +
+                "dependency1 1.0.0\n" +
+                "dependency2 1.0.0\n" +
+                "plugin1 1.0\n" +
+                "plugin2 2.0\n" +
+                "\nSet of all existing plugins and plugins that will be downloaded:\n" +
+                "bundled1 1.0\n" +
+                "bundled2 2.0\n" +
+                "dependency1 1.0.0\n" +
+                "dependency2 1.0.0\n" +
+                "installed1 1.0\n" +
+                "installed2 2.0\n" +
+                "plugin1 1.0\n" +
+                "plugin2 2.0\n";
+
+        ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(outContent));
+        pluginManager.listPlugins();
+
+        assertEquals(expectedOutput.trim(), outContent.toString().replaceAll("\\r\\n?", "\n").trim());
+    }
+
+    private void preparePluginManagerForListing(PluginManager pluginManager) {
         Map<String, Plugin> installedPluginVersions = new HashMap<>();
         Map<String, Plugin> bundledPluginVersions = new HashMap<>();
         Map<String, Plugin> allPluginsAndDependencies = new HashMap<>();
@@ -259,39 +340,6 @@ public class PluginManagerTest {
         pluginManager.setAllPluginsAndDependencies(allPluginsAndDependencies);
         pluginManager.setPluginsToBeDownloaded(pluginsToBeDownloaded);
         pluginManager.setEffectivePlugins(effectivePlugins);
-
-        String expectedOutput =
-                "\nInstalled plugins:\n" +
-                "installed1 1.0\n" +
-                "installed2 2.0\n" +
-                "\nBundled plugins:\n" +
-                "bundled1 1.0\n" +
-                "bundled2 2.0\n" +
-                "\nSet of all requested plugins:\n" +
-                "dependency1 1.0.0\n" +
-                "dependency2 1.0.0\n" +
-                "plugin1 1.0\n" +
-                "plugin2 2.0\n" +
-                "\nSet of all requested plugins that will be downloaded:\n" +
-                "dependency1 1.0.0\n" +
-                "dependency2 1.0.0\n" +
-                "plugin1 1.0\n" +
-                "plugin2 2.0\n" +
-                "\nSet of all existing plugins and plugins that will be downloaded:\n" +
-                "bundled1 1.0\n" +
-                "bundled2 2.0\n" +
-                "dependency1 1.0.0\n" +
-                "dependency2 1.0.0\n" +
-                "installed1 1.0\n" +
-                "installed2 2.0\n" +
-                "plugin1 1.0\n" +
-                "plugin2 2.0\n";
-
-        ByteArrayOutputStream outContent = new ByteArrayOutputStream();
-        System.setOut(new PrintStream(outContent));
-        pluginManager.listPlugins();
-
-        assertEquals(expectedOutput.trim(), outContent.toString().replaceAll("\\r\\n?", "\n").trim());
     }
 
     @Test
@@ -972,7 +1020,7 @@ public class PluginManagerTest {
     }
 
     @Test
-    public void findPluginsToDownloadTest() {
+    public void findPluginsToDownloadTestSimple() {
         Map<String, Plugin> requestedPlugins = new HashMap<>();
 
         Map<String, Plugin> installedPlugins = new HashMap<>();
@@ -989,13 +1037,23 @@ public class PluginManagerTest {
 
         assertEquals(actualPlugins.size(), 1);
         assertEquals(actualPlugins.get(0).toString(), "git 1.0.0");
+    }
+
+    @Test
+    public void findPluginsToDownloadTestLowerVersionBundled() {
+        Map<String, Plugin> requestedPlugins = new HashMap<>();
+
+        Map<String, Plugin> installedPlugins = new HashMap<>();
+        Map<String, Plugin> bundledPlugins = new HashMap<>();
+
+        List<Plugin> actualPlugins;
 
         requestedPlugins.put("credentials", new Plugin("credentials", "2.1.14", null, null));
         requestedPlugins.put("structs", new Plugin("structs", "1.18", null, null));
         requestedPlugins.put("ssh-credentials", new Plugin("ssh-credentials", "1.13", null, null));
 
         installedPlugins.put("git", new Plugin("git", "1.1.1", null, null));
-        installedPlugins.put("git-client", new Plugin("git-client","2.7.5", null, null));
+        installedPlugins.put("git-client", new Plugin("git-client", "2.7.5", null, null));
 
         bundledPlugins.put("structs", new Plugin("structs", "1.16", null, null));
 
@@ -1013,6 +1071,145 @@ public class PluginManagerTest {
         Collections.sort(expected);
 
         assertEquals(expected, actual);
+    }
+
+    @Test
+    public void findPluginsToDownloadTestLowerVersionInstalled() {
+        Map<String, Plugin> requestedPlugins = new HashMap<>();
+
+        Map<String, Plugin> installedPlugins = new HashMap<>();
+        Map<String, Plugin> bundledPlugins = new HashMap<>();
+
+        List<Plugin> actualPlugins;
+
+        requestedPlugins.put("credentials", new Plugin("credentials", "2.1.14", null, null));
+        requestedPlugins.put("git-client", new Plugin("git-client", "2.8.0", null, null));
+
+        installedPlugins.put("git-client", new Plugin("git-client", "2.7.5", null, null));
+
+        bundledPlugins.put("structs", new Plugin("structs", "1.16", null, null));
+
+        pm.setInstalledPluginVersions(installedPlugins);
+        pm.setBundledPluginVersions(bundledPlugins);
+
+        actualPlugins = pm.findPluginsToDownload(requestedPlugins);
+
+        List<String> actual = convertPluginsToStrings(actualPlugins);
+
+        List<String> expected = new ArrayList<>();
+        expected.add("credentials 2.1.14");
+        expected.add("git-client 2.8.0");
+        Collections.sort(expected);
+
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    public void findPluginsToDownloadTestHigherVersionInstalled() {
+        Map<String, Plugin> requestedPlugins = new HashMap<>();
+
+        Map<String, Plugin> installedPlugins = new HashMap<>();
+        Map<String, Plugin> bundledPlugins = new HashMap<>();
+
+        List<Plugin> actualPlugins;
+
+        requestedPlugins.put("git", new Plugin("git", "1.0.0", null, null));
+        requestedPlugins.put("credentials", new Plugin("credentials", "2.1.14", null, null));
+
+        installedPlugins.put("git", new Plugin("git", "1.1.1", null, null));
+
+        bundledPlugins.put("structs", new Plugin("structs", "1.16", null, null));
+
+        pm.setInstalledPluginVersions(installedPlugins);
+        pm.setBundledPluginVersions(bundledPlugins);
+
+        actualPlugins = pm.findPluginsToDownload(requestedPlugins);
+
+        List<String> actual = convertPluginsToStrings(actualPlugins);
+
+        List<String> expected = new ArrayList<>();
+        expected.add("credentials 2.1.14");
+        Collections.sort(expected);
+
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    public void findPluginsToDownloadTestSamePluginInstalledAndBundledWithBundledHigher() {
+        Map<String, Plugin> requestedPlugins = new HashMap<>();
+
+        Map<String, Plugin> installedPlugins = new HashMap<>();
+        Map<String, Plugin> bundledPlugins = new HashMap<>();
+
+        List<Plugin> actualPlugins;
+
+        requestedPlugins.put("git", new Plugin("git", "1.0.1", null, null));
+
+        installedPlugins.put("git", new Plugin("git", "1.0.0", null, null));
+
+        bundledPlugins.put("git", new Plugin("git", "1.0.2", null, null));
+
+        pm.setInstalledPluginVersions(installedPlugins);
+        pm.setBundledPluginVersions(bundledPlugins);
+
+        actualPlugins = pm.findPluginsToDownload(requestedPlugins);
+
+        List<String> actual = convertPluginsToStrings(actualPlugins);
+        assertThat(actual.size(), is(equalTo(0)));
+    }
+
+    @Test
+    public void findPluginsToDownloadTestSamePluginInstalledAndBundledWithBundledHigherButDoNotConsiderBundledPlugins() {
+        Map<String, Plugin> requestedPlugins = new HashMap<>();
+
+        Map<String, Plugin> installedPlugins = new HashMap<>();
+        Map<String, Plugin> bundledPlugins = new HashMap<>();
+
+        List<Plugin> actualPlugins;
+
+        requestedPlugins.put("git", new Plugin("git", "1.0.1", null, null));
+
+        installedPlugins.put("git", new Plugin("git", "1.0.0", null, null));
+
+        bundledPlugins.put("git", new Plugin("git", "1.0.2", null, null));
+
+        pm.setConsiderBundledPlugins(false);
+        pm.setInstalledPluginVersions(installedPlugins);
+        pm.setBundledPluginVersions(bundledPlugins);
+
+        actualPlugins = pm.findPluginsToDownload(requestedPlugins);
+
+        List<String> actual = convertPluginsToStrings(actualPlugins);
+
+        List<String> expected = new ArrayList<>();
+        expected.add("git 1.0.1");
+        Collections.sort(expected);
+
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    public void findPluginsToDownloadTestSamePluginInstalledAndBundledWithInstalledHigher() {
+        Map<String, Plugin> requestedPlugins = new HashMap<>();
+
+        Map<String, Plugin> installedPlugins = new HashMap<>();
+        Map<String, Plugin> bundledPlugins = new HashMap<>();
+
+        List<Plugin> actualPlugins;
+
+        requestedPlugins.put("git", new Plugin("git", "1.0.1", null, null));
+
+        installedPlugins.put("git", new Plugin("git", "1.0.2", null, null));
+
+        bundledPlugins.put("git", new Plugin("git", "1.0.1", null, null));
+
+        pm.setInstalledPluginVersions(installedPlugins);
+        pm.setBundledPluginVersions(bundledPlugins);
+
+        actualPlugins = pm.findPluginsToDownload(requestedPlugins);
+
+        List<String> actual = convertPluginsToStrings(actualPlugins);
+        assertThat(actual.size(), is(equalTo(0)));
     }
 
     @Test
@@ -1703,6 +1900,23 @@ public class PluginManagerTest {
         List<String> expectedPluginInfo = convertPluginsToStrings(new ArrayList<>(expectedPlugins.values()));
 
         assertEquals(expectedPluginInfo, actualPluginInfo);
+    }
+
+    @Test
+    @PrepareForTest({HttpClients.class, HttpClientContext.class, HttpHost.class})
+    public void bundledPluginsButDoNotConsiderBundledPluginsTest() {
+        URL warURL = this.getClass().getResource("/bundledplugintest.war");
+        File testWar = new File(warURL.getFile());
+
+        Config config = Config.builder()
+                .withJenkinsWar(testWar.toString())
+                .build();
+        PluginManager pluginManager = new PluginManager(config);
+        pluginManager.setConsiderBundledPlugins(false);
+
+        Map<String, Plugin> actualPlugins = pluginManager.bundledPlugins();
+
+        assertThat(actualPlugins.size(), is(0));
     }
 
     private JSONObject setTestUcJson() {

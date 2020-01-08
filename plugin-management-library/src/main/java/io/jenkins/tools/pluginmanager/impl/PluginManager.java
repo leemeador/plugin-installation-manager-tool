@@ -95,7 +95,7 @@ public class PluginManager {
         jenkinsUcLatest = cfg.getJenkinsUc().toString();
         useLatestSpecified = cfg.isUseLatestSpecified();
         useLatestAll = cfg.isUseLatestAll();
-        considerBundledPlugins  = false; // TODO: Add a CLI option to set this
+        considerBundledPlugins  = true; // TODO: Add a CLI option to set this
     }
 
     /**
@@ -121,9 +121,7 @@ public class PluginManager {
         getUCJson();
         getSecurityWarnings();
         showAllSecurityWarnings();
-        if (considerBundledPlugins) {
-            bundledPluginVersions = bundledPlugins();
-        }
+        bundledPluginVersions = bundledPlugins();
         installedPluginVersions = installedPlugins();
 
         allPluginsAndDependencies = findPluginsAndDependencies(cfg.getPlugins());
@@ -226,9 +224,9 @@ public class PluginManager {
         if (cfg.isShowPluginsToBeDownloaded()) {
             logPlugins("Installed plugins:", new ArrayList<>(installedPluginVersions.values()));
             if (!considerBundledPlugins) {
-                System.out.println("Bundled plugins: ignored by command line option");
+                System.out.println("\nBundled plugins: ignored by command line option");
             } else if (bundledPluginVersions.size() == 0) {
-                System.out.println("Bundled plugins: none found");
+                System.out.println("\nBundled plugins: none found");
             } else {
                 logPlugins("Bundled plugins:", new ArrayList<>(bundledPluginVersions.values()));
             }
@@ -978,46 +976,49 @@ public class PluginManager {
     public Map<String, Plugin> bundledPlugins() {
         Map<String, Plugin> bundledPlugins = new HashMap<>();
 
-        if (jenkinsWarFile.exists()) {
-            Path path = Paths.get(jenkinsWarFile.toString());
-            URI jenkinsWarUri;
-            try {
-                jenkinsWarUri = new URI("jar:" + path.toUri());
-            } catch (URISyntaxException e) {
-                throw new WarBundledPluginException("Unable to open war file to extract bundled plugin information", e);
-            }
+        if (considerBundledPlugins) {
 
-            // Walk through war contents and find bundled plugins
-            try (FileSystem warFS = FileSystems.newFileSystem(jenkinsWarUri, Collections.<String, Object>emptyMap())) {
-                Path warPath = warFS.getPath("/").getRoot();
-                PathMatcher matcher = warFS.getPathMatcher("regex:.*[^detached-]plugins.*\\.\\w+pi");
-                Stream<Path> walk = Files.walk(warPath);
-                for (Iterator<Path> it = walk.iterator(); it.hasNext(); ) {
-                    Path file = it.next();
-                    if (matcher.matches(file)) {
-                        Path fileName = file.getFileName();
-                        if (fileName != null) {
-                            // Because can't convert a ZipPath to a file with file.toFile()
-                            InputStream in = Files.newInputStream(file);
-                            final Path tempFile = Files.createTempFile("PREFIX", "SUFFIX");
-                            try (FileOutputStream out = new FileOutputStream(tempFile.toFile())) {
-                                IOUtils.copy(in, out);
+            if (jenkinsWarFile.exists()) {
+                Path path = Paths.get(jenkinsWarFile.toString());
+                URI jenkinsWarUri;
+                try {
+                    jenkinsWarUri = new URI("jar:" + path.toUri());
+                } catch (URISyntaxException e) {
+                    throw new WarBundledPluginException("Unable to open war file to extract bundled plugin information", e);
+                }
+
+                // Walk through war contents and find bundled plugins
+                try (FileSystem warFS = FileSystems.newFileSystem(jenkinsWarUri, Collections.<String, Object>emptyMap())) {
+                    Path warPath = warFS.getPath("/").getRoot();
+                    PathMatcher matcher = warFS.getPathMatcher("regex:.*[^detached-]plugins.*\\.\\w+pi");
+                    Stream<Path> walk = Files.walk(warPath);
+                    for (Iterator<Path> it = walk.iterator(); it.hasNext(); ) {
+                        Path file = it.next();
+                        if (matcher.matches(file)) {
+                            Path fileName = file.getFileName();
+                            if (fileName != null) {
+                                // Because can't convert a ZipPath to a file with file.toFile()
+                                InputStream in = Files.newInputStream(file);
+                                final Path tempFile = Files.createTempFile("PREFIX", "SUFFIX");
+                                try (FileOutputStream out = new FileOutputStream(tempFile.toFile())) {
+                                    IOUtils.copy(in, out);
+                                }
+
+                                String pluginVersion = getPluginVersion(tempFile.toFile());
+
+                                Files.delete(tempFile);
+                                String pluginName = FilenameUtils.getBaseName(fileName.toString());
+                                bundledPlugins
+                                        .put(pluginName, new Plugin(pluginName, pluginVersion, null, null));
                             }
-
-                            String pluginVersion = getPluginVersion(tempFile.toFile());
-
-                            Files.delete(tempFile);
-                            String pluginName = FilenameUtils.getBaseName(fileName.toString());
-                            bundledPlugins
-                                    .put(pluginName, new Plugin(pluginName, pluginVersion, null, null));
                         }
                     }
+                } catch (IOException e) {
+                    throw new WarBundledPluginException("Unable to open war file to extract bundled plugin information", e);
                 }
-            } catch (IOException e) {
-                throw new WarBundledPluginException("Unable to open war file to extract bundled plugin information", e);
+            } else {
+                System.out.println("War not found, installing all plugins: " + jenkinsWarFile.toString());
             }
-        } else {
-            System.out.println("War not found, installing all plugins: " + jenkinsWarFile.toString());
         }
         return bundledPlugins;
     }
@@ -1162,4 +1163,14 @@ public class PluginManager {
     public List<Plugin> getFailedPlugins() {
         return failedPlugins;
     }
+
+    /**
+     * Indicate whether to use the list of bundled plugins or not.
+     *
+     * @param considerBundledPlugins true will read and use the bundled plugins when making decisions on what to download
+     */
+    public void setConsiderBundledPlugins(boolean considerBundledPlugins) {
+        this.considerBundledPlugins = considerBundledPlugins;
+    }
+
 }
