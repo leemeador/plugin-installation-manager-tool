@@ -103,6 +103,13 @@ class CliOptions {
             handler = BooleanOptionHandler.class)
     private boolean useLatestAll;
 
+    @Option(name = "--ignore-bundled-plugins", usage = "Set to true to ignore plugins bundled in the Jenkins war " +
+            "file (if any is found). They are ignored when choosing dependency plugin versions. They are ignored " +
+            "when deciding whether to do a download of a plugin. This acts just as if there are no plugins bundled " +
+            "in the war. Defaults to false",
+            handler = BooleanOptionHandler.class)
+    private boolean ignoreBundledPlugins;
+
     @Option(name = "--help", aliases = {"-h"}, help = true)
     private boolean showHelp;
 
@@ -127,6 +134,7 @@ class CliOptions {
                 .withDoDownload(!isNoDownload())
                 .withUseLatestSpecified(isUseLatestSpecified())
                 .withUseLatestAll(isUseLatestAll())
+                .withIgnoreBundledPlugins(isIgnoreBundledPlugins())
                 .build();
     }
 
@@ -394,6 +402,16 @@ class CliOptions {
                     "at a time");
         }
         return useLatestAll;
+    }
+
+    /**
+     * Returns boolean corresponding to if user wanted to ignore any plugins bundled in the Jenkins war
+     *
+     * @return true if user wanted to ignore the bundled plugins, false if the user wanted to consider the bundled
+     * plugins
+     */
+    public boolean isIgnoreBundledPlugins() {
+        return ignoreBundledPlugins;
     }
 
     // visible for testing

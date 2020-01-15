@@ -95,7 +95,7 @@ public class PluginManager {
         jenkinsUcLatest = cfg.getJenkinsUc().toString();
         useLatestSpecified = cfg.isUseLatestSpecified();
         useLatestAll = cfg.isUseLatestAll();
-        considerBundledPlugins  = true; // TODO: Add a CLI option to set this
+        considerBundledPlugins  = !cfg.isIgnoreBundledPlugins();
     }
 
     /**

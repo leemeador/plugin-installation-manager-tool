@@ -31,6 +31,7 @@ public class Config {
     private boolean doDownload;
     private boolean useLatestSpecified;
     private boolean useLatestAll;
+    private boolean ignoreBundledPlugins;
 
     private Config(
             File pluginDir,
@@ -46,7 +47,8 @@ public class Config {
             URL jenkinsIncrementalsRepoMirror,
             boolean doDownload,
             boolean useLatestSpecified,
-            boolean useLatestAll
+            boolean useLatestAll,
+            boolean ignoreBundledPlugins
     ) {
         this.pluginDir = pluginDir;
         this.showWarnings = showWarnings;
@@ -62,6 +64,7 @@ public class Config {
         this.doDownload = doDownload;
         this.useLatestSpecified = useLatestSpecified;
         this.useLatestAll = useLatestAll;
+        this.ignoreBundledPlugins = ignoreBundledPlugins;
 
     }
 
@@ -119,6 +122,10 @@ public class Config {
 
     public boolean isUseLatestAll() { return useLatestAll; }
 
+    public boolean isIgnoreBundledPlugins() {
+        return ignoreBundledPlugins;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -138,6 +145,7 @@ public class Config {
         private boolean doDownload;
         private boolean useLatestSpecified;
         private boolean useLatestAll;
+        private boolean ignoreBundledPlugins;
 
         private Builder() {
         }
@@ -212,6 +220,11 @@ public class Config {
             return this;
         }
 
+        public Builder withIgnoreBundledPlugins(boolean ignoreBundledPlugins) {
+            this.ignoreBundledPlugins = ignoreBundledPlugins;
+            return this;
+        }
+
         public Config build() {
             return new Config(
                     pluginDir,
@@ -227,7 +240,8 @@ public class Config {
                     jenkinsIncrementalsRepoMirror,
                     doDownload,
                     useLatestSpecified,
-                    useLatestAll
+                    useLatestAll,
+                    ignoreBundledPlugins
             );
         }
 

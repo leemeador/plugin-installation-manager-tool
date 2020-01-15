@@ -348,6 +348,20 @@ public class CliOptionsTest {
         assertEquals(false, cfg.isUseLatestAll());
     }
 
+    @Test
+    public void ignoreBundledPluginsTest() throws CmdLineException {
+        parser.parseArgument("--ignore-bundled-plugins");
+        Config cfg = options.setup();
+        assertEquals(true, cfg.isIgnoreBundledPlugins());
+    }
+
+    @Test
+    public void ignoreNotBundledPluginsTest() throws CmdLineException {
+        parser.parseArgument();
+        Config cfg = options.setup();
+        assertEquals(false, cfg.isIgnoreBundledPlugins());
+    }
+
     @Test (expected = PluginDependencyStrategyException.class)
     public void useLatestSpecifiedAndLatestAllTest() throws CmdLineException {
         parser.parseArgument("--latest", "--latest-specified");
